@@ -8,17 +8,31 @@
 
 'use strict';
 
+const client = require("../database");
+const { ObjectId } = require("mongodb");
+
 module.exports = function (app) {
 
   app.route('/api/books')
-    .get(function (req, res){
-      //response will be array of book objects
-      //json res format: [{"_id": bookid, "title": book_title, "commentcount": num_of_comments },...]
+    .get(async (req, res) => {
+      const books = client.db('project-library').collection('book');
+      const result = (await books.find().toArray()).map(b => { 
+        return { 
+          _id: b._id,
+          title: b.title,
+          commentcount: b.comments.length
+        }
+      });
+      res.json(result);
     })
     
-    .post(function (req, res){
+    .post(async (req, res) => {
       let title = req.body.title;
-      //response will contain new book object including atleast _id and title
+      if (!title) return res.json('missing required field title');
+
+      const books = client.db('project-library').collection('book');
+      const book = await books.insertOne({ title, comments: [] });
+      res.status(200).json({ _id: book.insertedId, title });
     })
     
     .delete(function(req, res){
@@ -28,20 +42,47 @@ module.exports = function (app) {
 
 
   app.route('/api/books/:id')
-    .get(function (req, res){
+    .get(async (req, res) => {
       let bookid = req.params.id;
-      //json res format: {"_id": bookid, "title": book_title, "comments": [comment,comment,...]}
+      const books = client.db('project-library').collection('book');
+      const result = await books.findOne({ _id: ObjectId.createFromHexString(bookid) });
+      if (!result) res.json('no book exists');
+      else res.json(result);
     })
     
-    .post(function(req, res){
+    .post(async (req, res) => {
       let bookid = req.params.id;
       let comment = req.body.comment;
-      //json res format same as .get
+      if (!comment) {
+        res.json('missing required field comment');
+        return;
+      }
+
+      const books = client.db('project-library').collection('book');
+      const filter = { _id : ObjectId.createFromHexString(bookid) };
+      const updatedBook = await books.updateOne(filter, { $push: { comments: comment } });
+
+      if (updatedBook.modifiedCount < 1) {
+        res.json('no book exists');
+        return;
+      } 
+      
+      const result = await books.findOne(filter);
+      res.json(result);
     })
     
-    .delete(function(req, res){
+    .delete(async (req, res) => {
       let bookid = req.params.id;
-      //if successful response will be 'delete successful'
+      console.log(bookid)
+      const filter = { _id : ObjectId.createFromHexString(bookid) };
+      const books = client.db('project-library').collection('book');
+      const result = await books.findOneAndDelete(filter);
+      console.log('risultato:', result);
+      if (!result) {
+        res.json('no book exists');
+      } else {
+        res.json('delete successful');
+      }
     });
   
 };
