@@ -35,8 +35,10 @@ module.exports = function (app) {
       res.status(200).json({ _id: book.insertedId, title });
     })
     
-    .delete(function(req, res){
-      //if successful response will be 'complete delete successful'
+    .delete(async(req, res) => {
+      const books = client.db('project-library').collection('book');
+      await books.deleteMany();
+      res.json('complete delete successful');
     });
 
 
@@ -73,11 +75,9 @@ module.exports = function (app) {
     
     .delete(async (req, res) => {
       let bookid = req.params.id;
-      console.log(bookid)
       const filter = { _id : ObjectId.createFromHexString(bookid) };
       const books = client.db('project-library').collection('book');
       const result = await books.findOneAndDelete(filter);
-      console.log('risultato:', result);
       if (!result) {
         res.json('no book exists');
       } else {
